@@ -1,9 +1,9 @@
 Программно-аппаратный комплекс для диагностики шины CAN
 ---
-Сервер:
-Аппаратная часть: ESP32, VP251
-Технологии: freeRTOS, lwip, SPI
----
-Клиент:
-Аппаратная часть: Android
+![hippo](https://s10.gifyu.com/images/testff254d9afcfb1906.gif)<br />
+### Сервер:
+Аппаратная часть: ESP32, VP251<br />
+Технологии: freeRTOS, lwip, TWAI
+
+### Клиент:
 Технологии: react-native-...wifi, elements, router, tcp 
