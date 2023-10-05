@@ -1,25 +1,23 @@
 #include "CAN.h"
-//static SemaphoreHandle_t txMutex;//xSemaphoreCreateMutex(); Mutex на право писать в CAN шину
-static EventGroupHandle_t canEvents;//Контроллер потоков шины
-static twai_timing_config_t t_config = { 0, 0, 0, 3, false };//Частота шины
-static const twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL(); //Не фильтровать кадры
-static const twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(21, 22, TWAI_MODE_NO_ACK);//Пины микроконтроллера на котором находится приемо-передатчик и его режим
-
+static EventGroupHandle_t canEvents;
+static twai_timing_config_t t_config = { 0, 0, 0, 3, false };
+static const twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
+static const twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(21, 22, TWAI_MODE_NO_ACK);
 static bool isWriting;
 static bool isMonitor;
-static int availableBytes = 0;//kbytes
+static int availableBytes = 0;
 static uint8_t deviceCount = 1;
-static void CANtx(void *arg) { //TODO: добавить отслеживание переменной для мгновенного удаления всех устройств
+static void CANtx(void *arg) {
 	twai_message_t tx_msg = { .data_length_code = TWAI_FRAME_MAX_DLC };
 	memset(tx_msg.data, 0, TWAI_FRAME_MAX_DLC);
 	twai_status_info_t status_info;
-	while (twai_get_status_info(&status_info) == ESP_OK) {//отслеживает состояние драйвера CAN. ESP_OK - драйвер инициализирован
+	while (twai_get_status_info(&status_info) == ESP_OK) {
 		if (status_info.state == TWAI_STATE_RUNNING) {
 			memset(tx_msg.data, 0, sizeof(tx_msg.data));
-			tx_msg.identifier = esp_random() % deviceCount; //%2047 т.к. идентификатор 11bit    esp_random() % 2047
-			tx_msg.self = 1; //без подтверждения доставки
+			tx_msg.identifier = esp_random() % deviceCount;
+			tx_msg.self = 1;
 			for (int i = 0; i < TWAI_FRAME_MAX_DLC; i++) {
-				tx_msg.data[i] = (esp_random() % 2) ? (esp_random() % 256) : 0; // с вероятностью 50/50 инициализирует i байт от 0 до FF
+				tx_msg.data[i] = (esp_random() % 2) ? (esp_random() % 256) : 0;
 			}
 			ESP_ERROR_CHECK(twai_transmit(&tx_msg, portMAX_DELAY));
 		}
@@ -29,24 +27,24 @@ static void CANtx(void *arg) { //TODO: добавить отслеживание переменной для мгно
 }
 
 static void CANrx(void *arg){
-	twai_status_info_t status_info; //twai_get_status_info при (void*)0 возвращает ошибку ESP_ERR_INVALID_ARG
+	twai_status_info_t status_info;
 	twai_message_t rx_message;
-	while (twai_get_status_info(&status_info) == ESP_OK) { //отслеживает состояние драйвера CAN. ESP_OK - драйвер инициализирован
-		ESP_ERROR_CHECK(twai_receive(&rx_message, portMAX_DELAY)); //Ждет сообщения из CAN шины
-		ESP_LOGI("CAN", "ID:%X", rx_message.identifier); //Сообщение пришло
+	while (twai_get_status_info(&status_info) == ESP_OK) {
+		ESP_ERROR_CHECK(twai_receive(&rx_message, portMAX_DELAY));
+		ESP_LOGI("CAN", "ID:%X", rx_message.identifier);
 		for (uint8_t i = 0; i < rx_message.data_length_code; i++)
 			printf("%X  ", rx_message.data[i]);
 		printf("\n");
-		if (isWriting && availableBytes > 0){//Если получена команда записывать в файл
-			writePacket(&rx_message);//Если будут ошибки при записи запись остановится независимо от управляющих команд
+		if (isWriting && availableBytes > 0){
+			writePacket(&rx_message);
 			availableBytes -= 30;
 		}else{
 			stopRecord();
 		}
 		if(isMonitor)
-			isMonitor = TCPSendCanPacket(&rx_message);//Если отправка пакетов невозможно сервер прекратит попытки
+			isMonitor = TCPSendCanPacket(&rx_message);
 	}
-	vTaskDelete(NULL); //Драйвер CAN удален
+	vTaskDelete(NULL);
 }
 static void CANController(void *arg){
 	EventBits_t bits;
@@ -54,7 +52,7 @@ static void CANController(void *arg){
 		bits = xEventGroupWaitBits(canEvents, CAN_start | CAN_stop | CAN_uninstall, pdFALSE, pdFALSE, portMAX_DELAY);
 		if ((bits & CAN_start) == CAN_start) {
 			ESP_LOGE("CAN", "twai_start()");
-			ESP_ERROR_CHECK(twai_start());//Переводит twai_status_info_t.state в TWAI_STATE_RUNNING
+			ESP_ERROR_CHECK(twai_start());
 		}
 		if ((bits & CAN_stop) == CAN_stop) {
 			ESP_LOGE("CAN", "twai_stop()");
@@ -105,9 +103,6 @@ static bool setCANSpeed(int speed) {
 }
 
 bool initDriver(uint8_t speed){
-	//тут можно обойтись без лишнего указателя на twai_status_info_t
-	//т.к. twai_get_status_info первоначально проверяет инициализацию драйвера
-	//ESP_ERR_INVALID_STATE вернется не зависимо от аргументов
 	if (twai_get_status_info(NULL) == ESP_ERR_INVALID_STATE && setCANSpeed(speed)) {
 		canEvents = xEventGroupCreate();
 		ESP_ERROR_CHECK(twai_driver_install(&g_config, &t_config, &f_config));
@@ -121,19 +116,19 @@ bool initDriver(uint8_t speed){
 }
 
 bool setCANState(CANState state) {
-	twai_status_info_t status_info;	//twai_get_status_info при (void*)0 возвращает ошибку ESP_ERR_INVALID_ARG
-	if (twai_get_status_info(&status_info) == ESP_OK) {//CAN инициализирован ?
+	twai_status_info_t status_info;
+	if (twai_get_status_info(&status_info) == ESP_OK) {
 		xEventGroupSetBits(canEvents, state);
 		return true;
 	}
 	return false;
 }
 
-bool startRecord(uint8_t maxSize){//N kbytes
-	twai_status_info_t status_info;	//twai_get_status_info при (void*)0 возвращает ошибку ESP_ERR_INVALID_ARG
+bool startRecord(uint8_t maxSize){
+	twai_status_info_t status_info;
 	ESP_LOGE("RECORD", "fileSize: %d", maxSize);
-	if (twai_get_status_info(&status_info) == ESP_OK) {	//CAN инициализирован ?
-		availableBytes = maxSize * 1024;//max 8738 пакетов в 1 файле
+	if (twai_get_status_info(&status_info) == ESP_OK) {
+		availableBytes = maxSize * 1024;
 		return isWriting = true;
 	}
 	return false;

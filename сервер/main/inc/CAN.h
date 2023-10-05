@@ -11,8 +11,6 @@
 #include "esp_log.h"
 #include "driver/twai.h"
 #include "freertos/event_groups.h"
-//#include "state.h"
-//#include "state.h"
 #include "serverActions.h"
 #include "SDCard.h"
 
@@ -22,8 +20,8 @@ typedef enum {
 
 bool initDriver(uint8_t speed);
 bool setCANState(CANState state);
-bool startRecord(uint8_t maxSize);//начать запись шины, остановиться, когда размер файла = maxSize
-bool stopRecord();//остановить запись вручную
+bool startRecord(uint8_t maxSize);
+bool stopRecord();
 void startMonitor();
 void stopMonitor();
 void setDeviceCount(uint8_t count);

@@ -20,7 +20,7 @@
 #include "driver/gpio.h"
 #include "SDCard.h"
 #include "serverActions.h"
-typedef void(*event)();//события wifi EventGroupHandle_t * state
+typedef void(*event)();
 void wifi_init_hot(wifi_config_t* __wifi, event _onConnect, event _onDisconnect);
 
 

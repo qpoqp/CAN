@@ -7,7 +7,7 @@
 (*COMMAND)[START + 3] =  VALUE & 0xFF;\
 
 static void onCONNECT(action_t *command) {
-	TCPSendStatus(initDriver((*command)[2] - '0'));//инициализирует скорость шины CAN
+	TCPSendStatus(initDriver((*command)[2] - '0'));
 }
 
 static void onCAN(action_t *command){//start / stop CAN emulation
@@ -20,7 +20,7 @@ static void onCAN(action_t *command){//start / stop CAN emulation
 static void onRECORD(action_t *command){//start / stop record on sdCard
 	if((*command)[1] == '1'){
 		openFileForCAN((char *)command);
-		startRecord((*command)[2]);//параметр - максимальный размер файла
+		startRecord((*command)[2]);
 		TCPSendStatus(true);
 	}else if((*command)[1] == '0'){
 		stopRecord();

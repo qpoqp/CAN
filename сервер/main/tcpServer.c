@@ -2,34 +2,28 @@
 static serverActions_t s_a;
 static int32_t serverSocket = -1;
 static int32_t clientSocket = -1;
-static TaskHandle_t server_desc; //дескриптор задачи сервера
+static TaskHandle_t server_desc;
 bool init_server(serverActions_t* serverActions) {
 	if(serverActions == (void*)0){
 		ESP_LOGE("SERVER", "SERVER ACTIONS ARE (void*)0");
 		return false;
 	}
 	s_a = *serverActions;
-	struct sockaddr_in dest_addr = {				//Настройка сервера
-				.sin_family = AF_INET,				//Тип протокола сетевого уровня ipv4
-				.sin_port = htons(5555),			//Порт сервера
-				.sin_addr.s_addr = htonl(INADDR_ANY)//Сервер доступен для всех устройств, подключенных к точке доступа
+	struct sockaddr_in dest_addr = {
+				.sin_family = AF_INET,
+				.sin_port = htons(5555),
+				.sin_addr.s_addr = htonl(INADDR_ANY)
 		};
-	//	socket 		- создает объект сокета с параметрами используемых протоколов:
-	//	AF_INET     - Использовать IPv4 на сетевом уровне
-	//	SOCK_STREAM - Использовать TCP  на транспортном уровне
-	//	IPPROTO_IP  - Создать соект для семества адресов IPv4
 	serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
 	if (serverSocket < 0) {
 		ESP_LOGE("SERVER", "serverSocket < 0");
 		return false;
 	}
-	//	bind - присоединяет объект сокета к определенному ip адресу и порту
 	if (bind(serverSocket, (struct sockaddr*) &dest_addr, sizeof(dest_addr)) != 0) {
 		close(serverSocket);
 		ESP_LOGE("SERVER", "bind < 0 ");
 		return false;
 	}
-	//	listen - Порт готов принимать соединения, 1 - размер очереди соединений
 	if (listen(serverSocket, 1) != 0) {
 		close(serverSocket);
 		ESP_LOGE("SERVER", "listen < 0");
@@ -40,11 +34,10 @@ bool init_server(serverActions_t* serverActions) {
 }
 static void server_task(void *pvParameters) {
 	action_t command;
-	while (1) { //пользователь закрыл предыдущее соединение, но все еще не отключился от wifi
-		struct sockaddr_storage source_addr; //ин-ия о клиенте
+	while (1) {
+		struct sockaddr_storage source_addr;
 		uint addr_len = sizeof(source_addr);
-		//accept - сервер переходит в режим ожидания подключения клиента
-		clientSocket = accept(serverSocket, (struct sockaddr*) &source_addr, &addr_len); //Сокет клиента
+		clientSocket = accept(serverSocket, (struct sockaddr*) &source_addr, &addr_len);
 		if (clientSocket < 0) {
 			ESP_LOGE("SERVER", "CAN'T ACCEPT NEW CONNECTION: %d", errno);
 			break;
@@ -52,7 +45,7 @@ static void server_task(void *pvParameters) {
 		ESP_LOGE("SERVER", "RECIEVED NEW CONNECTION");
 		while (1) {
 			memset(command, '\0', sizeof(command));
-			if (recv(clientSocket, command, sizeof(command), 0) > 0) { //пустой пакет (len = 0) -> закрыть соединение
+			if (recv(clientSocket, command, sizeof(command), 0) > 0) {
 				ESP_LOGE("SERVER", "NEW COMMAND:%s", command);
 				switch (command[0] - '0') {
 				case _CONNECT: {
@@ -91,7 +84,6 @@ static void server_task(void *pvParameters) {
 				break;
 			}
 		}
-		//Пользователь отключился
 		closeClientConnection();
 	}
 	close(serverSocket);
@@ -103,10 +95,7 @@ void closeClientConnection(){
 }
 
 int serverStart(){
-	//1)метод таска 2)название задачи
-	//3)размер стека для задачи 4)параметры для метода
-	//5) приоритет потока 6) объект для хранения дескриптора
-	return xTaskCreate(server_task, "tcp_server", 4096, NULL, 5, &server_desc); //Создает задачу TCP сервера
+	return xTaskCreate(server_task, "tcp_server", 4096, NULL, 5, &server_desc);
 }
 bool TCPSendStatus(bool state){
 	return (clientSocket && send(clientSocket, state ? "S:1" : "S:0", 3, 0)) ?
